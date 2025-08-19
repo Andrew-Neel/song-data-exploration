@@ -1,0 +1,106 @@
+---
+title: "Run 1"
+author: "Andrew Neel"
+date: "2025-08-17"
+output: html_document
+---
+```{r}
+library(dbscan)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(ggcorrplot)
+library(Rtsne)
+```
+
+
+choose epsilon and min points, I decided on epsilon = 0.28, min points = 14
+```{r}
+kNNdistplot(model.data, k = 14)
+abline(h = 0.28, col = "red")
+```
+trying to run it
+```{r}
+db <- dbscan(model.data, eps = 0.28, minPts = 14)
+```
+
+## evaluate
+
+There was one cluster and 139 outliers
+```{r}
+summary(db)
+sum(db$cluster == 0)
+length(unique(db$cluster)) - (0 %in% db$cluster)
+table(db$cluster)
+
+```
+
+
+visualize, I used principal components analysis to be able to visualize the multi-dimensional results of Moran's I. If I did this again I would probably use a different method
+```{r}
+pca <- prcomp(model.data)
+df_plot <- as.data.frame(pca$x[, 1:2])
+df_plot$cluster <- as.factor(db$cluster)
+
+ggplot(df_plot, aes(PC1, PC2, color = cluster)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Clusters Reduced by PCA") 
+#ggsave("db1_clusters.png")
+df_plot %>%
+  filter(df_plot$cluster != 1) %>%
+  ggplot(aes(PC1, PC2, color = cluster)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Outliers Reduced by PCA")
+#ggsave("db1_outliers.png")
+```
+
+
+Taking a closer look at the outliers to see if there are any patterns
+```{r}
+outliers <- raw.data[db$cluster == 0, ]
+for (col in cols) {
+  
+  p <- ggplot(outliers, aes_string(x = col)) +
+    geom_density(fill = "steelblue", color = "white") +
+    labs(title = paste("Distribution of", col), x = col, y = "Density") 
+  print(p)
+  
+  filename <- paste0(col, "_outliers.png")
+  
+  # Save plot
+  #ggsave(filename, plot = p, width = 5, height = 4, dpi = 300)
+}
+```
+Interesting genres mix in the outliers, note the data was incomplete and not all songs had genres which is why the "-" genre shows up so much
+```{r}
+genre_counts <- table(outliers$main_genre)
+genre_counts_filtered <- genre_counts[genre_counts > 1]
+df_counts <- as.data.frame(genre_counts_filtered)
+colnames(df_counts) <- c("genre", "count")
+
+ggplot(df_counts, aes(x = genre, y = count)) +
+  geom_bar(stat = "identity",fill = "steelblue") +
+  geom_text(aes(label = count), vjust = -0.2) +
+  labs(title = "Genres Appearing More Than Once",
+       x = "Genre",
+       y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#ggsave("outlier_genres.png")
+```
+I was supprised by the major mainstream artists that showed up in the outliers, but there was also some really interestingnunique sounding stuff like Dickie Goodman
+```{r}
+name_counts <- table(outliers$artist_name)
+name_counts_filtered <- name_counts[name_counts > 1]
+df_counts <- as.data.frame(name_counts_filtered)
+colnames(df_counts) <- c("name", "count")
+
+ggplot(df_counts, aes(x = name, y = count)) +
+  geom_bar(stat = "identity",fill = "steelblue") +
+  geom_text(aes(label = count), vjust = -0.2) +
+  labs(title = "Artist Appearing More Than Once",
+       x = "Artist",
+       y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#ggsave("outlier_Artist.png")
+```

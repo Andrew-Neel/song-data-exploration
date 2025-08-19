@@ -1,0 +1,69 @@
+---
+title: "Data Prep"
+author: "Andrew Neel"
+date: "2025-08-17"
+output: html_document
+---
+
+```{r}
+library(dbscan)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(ggcorrplot)
+library(Rtsne)
+```
+
+## Import
+
+```{r}
+load("rawdata.RDATA")
+
+head(raw.data)
+```
+
+
+## Exploration
+
+Check Correlation as a first step for exploration
+```{r}
+# Select numeric columns only
+numeric_data <- raw.data[, sapply(raw.data, is.numeric)]
+drop <- c("song_id", "key", "mode", "time_signature", "billboard")
+numeric_data <- numeric_data[,!(names(numeric_data) %in% drop)]
+# Compute correlation matrix
+cor_matrix <- cor(numeric_data, use = "complete.obs", method = "pearson")
+
+
+ggcorrplot(cor_matrix, type = "upper", lab = TRUE, lab_size = 2.5)
+```
+
+
+Check histograms the shape may influence the results of clustering
+```{r}
+cols <- colnames(numeric_data)
+for (col in cols) {
+  p <- ggplot(raw.data, aes_string(x = col)) +
+    geom_density(fill = "steelblue", color = "white") +
+    labs(title = paste("Density of", col), x = col, y = "Density") 
+  print(p)
+  
+  filename <- paste0(col, "_explore.png")
+  
+  # Save plot
+  #ggsave(filename, plot = p, width = 5, height = 4, dpi = 300)
+  
+}
+
+```
+
+Look at summary stats for more exploration
+```{r}
+summary(raw.data[, cols])
+```
+choose final features, I removed duration_ms, loudness and tempo mainly because they are measured in units different from the other factors
+```{r}
+drop <- c("duration_ms", "loudness", "tempo")
+model.data <- numeric_data[,!(names(numeric_data) %in% drop)]
+str(model.data)
+```
